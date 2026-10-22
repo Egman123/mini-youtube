@@ -216,8 +216,6 @@ app.post('/videos/:id/view', (req, res) => {
    res.json(video);
 })
 
-
-
 app.get('/videos/:id', (req, res) => {
     const id = Number(req.params.id);
     
@@ -369,6 +367,105 @@ app.post('/videos/:id/like', (req, res) => {
     ).get(id);
 
     res.json(updatedVideo);
+})
+
+app.post('/videos/:id/comments', (req, res) => {
+    const videoId = Number(req.params.id);
+    const { text } = req.body;
+
+    const video = db.prepare(
+        'SELECT * FROM videos WHERE id = ?'
+    ).get(videoId);
+
+    if (!video) {
+        return res.status(404).json({
+            error: 'Video not found'
+        });
+    }
+
+    if (typeof text !== 'string' || !text.trim()) {
+        return res.status(400).json({
+            error: 'Comment text is required'
+        })
+    }
+
+    const result = db.prepare(
+        'INSERT INTO comments (videoId, text) VALUES (?, ?)'
+    ).run(videoId, text.trim());
+
+    const comment = db.prepare(
+        'SELECT * FROM comments WHERE id = ?'
+    ).get(result.lastInsertRowid);
+
+    res.status(201).json(comment)
+})
+
+app.get('/videos/:id/comments', (req, res) => {
+    const videoId = Number(req.params.id);
+
+    if (!Number.isInteger(videoId) || videoId <= 0) {
+        return res.status(400).json({
+            error: 'Invalid video ID'
+        });
+    }
+
+    const video = db.prepare(
+       'SELECT id FROM videos WHERE id = ?'
+    ).get(videoId);
+
+    if (!video) {
+        return res.status(404).json({
+            error: 'Video not found'
+        });
+    }
+
+    const limit = Math.min(
+        Math.max(Number(req.query.limit) || 10, 1),
+        100
+    );
+
+    const page = Math.max(
+        Number(req.query.page) || 1,
+        1
+    );
+
+    const offset = (page - 1) * limit;
+
+    const comments = db.prepare(
+        'SELECT * FROM comments WHERE videoId = ? ORDER BY id DESC LIMIT ? OFFSET ?'
+    ).all(videoId, limit, offset);
+
+    res.json(comments)
+})
+
+app.delete('/videos/:id/comments/:commentId', (req, res) => {
+    const videoId = Number(req.params.id);
+    const commentId = Number(req.params.commentId);
+
+    if (
+        !Number.isInteger(videoId) || videoId <= 0 ||
+        !Number.isInteger(commentId) || commentId <= 0
+    ) {
+        return res.status(400).json({
+            error: 'Invalid video or comment ID'
+        });
+    }
+
+    const comment = db.prepare(
+        'SELECT * FROM comments WHERE id = ? AND videoId = ?'
+    ).get(commentId, videoId);
+
+    if (!comment) {
+        return res.status(404).json({
+            error: 'Comment not found for this video'
+        });
+    }
+
+    db.prepare(
+        'DELETE FROM comments WHERE id = ? AND videoId = ?'
+    ).run(commentId, videoId);
+
+    res.status(204).send();
 })
 
 app.use((err, req, res, next) => {
