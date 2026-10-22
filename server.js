@@ -216,6 +216,8 @@ app.post('/videos/:id/view', (req, res) => {
    res.json(video);
 })
 
+
+
 app.get('/videos/:id', (req, res) => {
     const id = Number(req.params.id);
     
@@ -343,6 +345,30 @@ app.patch('/videos/:id', (req, res) => {
     ).get(id);
 
     res.json(video);
+})
+
+app.post('/videos/:id/like', (req, res) => {
+    const id = Number(req.params.id);
+
+    const video = db.prepare(
+        'SELECT * FROM videos WHERE id = ?'
+    ).get(id);
+
+    if(!video) {
+        return res.status(404).json({
+            error: 'Video not found'
+        })
+    }
+
+    db.prepare(
+        'Update videos SET likes = likes + 1 WHERE id = ?'
+    ).run(id)
+
+    const updatedVideo = db.prepare(
+        'SELECT * FROM videos WHERE id = ?'
+    ).get(id);
+
+    res.json(updatedVideo);
 })
 
 app.use((err, req, res, next) => {
